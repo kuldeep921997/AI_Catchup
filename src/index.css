@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: #0A0D16;
+  color: #E7EAF3;
+  font-family: 'Inter', sans-serif;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(124,92,252,0.10), transparent 40%),
+    radial-gradient(circle at 100% 30%, rgba(91,140,255,0.08), transparent 45%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2A3355; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4570; }
+
+::selection { background: rgba(124,92,252,0.35); }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(124,92,252,0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(124,92,252,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,92,252,0); }
+}
+.pulse { animation: pulse-ring 2s infinite; }
+
+textarea:focus, button:focus-visible, a:focus-visible {
+  outline: 2px solid #7C5CFC;
+  outline-offset: 2px;
+}
+
+/* Lesson body: tighter spacing between adjacent block types so the prose
+   reads as continuous text rather than a stack of cards. */
+.reading > h3:first-child { margin-top: 0; }
+.reading > p:first-child  { margin-top: 0; }
+.reading > h3 + p         { margin-top: 0.5rem; }
+.reading > h3 + ul,
+.reading > h3 + ol        { margin-top: 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+  * { scroll-behavior: auto !important; }
+}
