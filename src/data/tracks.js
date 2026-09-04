@@ -10,6 +10,7 @@
 import learnModules from "./curriculum";
 import prepModules from "./prep";
 import prepQaNotes from "./qaNotes";
+import crisilModules from "./crisil";
 
 export const TRACKS = {
   learn: {
@@ -78,8 +79,42 @@ export const TRACKS = {
       "Mock interview feedback, questions you froze on, your own explanation of tricky topics, company-specific notes, numbers to quote...",
     qaNotes: prepQaNotes,
   },
+
+  crisil: {
+    id: "crisil",
+    label: "Crisil Prep",
+    short: "CRISIL",
+    mono: "/python_backend_trading",
+    kicker: "CRISIL · PYTHON BACKEND (TRADING) · FAST TRACK",
+    title: "Crisil — Python Backend Engineer",
+    tagline: "Full Stack Engineer (Python), Trading/Capital Markets team — from JD to interview-ready.",
+    blurb:
+      "Nine modules built directly from the Crisil JD and the recruiter's own feedback: async Python, FastAPI/Django/Flask, WebSocket APIs, PostgreSQL, Redis and messaging, microservices, and the OMS/RMS, order-lifecycle and FIX-protocol vocabulary of the trading domain you already have real experience in from Algonauts — plus the narrative for the frontend/backend gap on your resume.",
+    storageKey: "crisil-prep-progress-v1",
+    exportPrefix: "crisil-progress",
+    modules: crisilModules,
+    accentClass: "text-success",
+    unit: "STEP",
+    unitLong: "step",
+    unitDays: 1,
+    navLabel: "Crisil Path",
+    scheduleTitle: "9-step fast-track plan",
+    scheduleBlurb:
+      "One module per day at roughly {avg} hrs each. This is a compressed, JD-specific sprint, not the full 28-day program — built for a live interview process, not steady-state prep.",
+    tabs: { theory: "Recall", math: "Patterns", practice: "Drills" },
+    hints: {
+      theory:
+        "Check one off only when you can explain it out loud, unprompted, with no notes — the same bar as the main prep track.",
+      practice:
+        "Timed drills and rehearsed answers. No AI assistance, no copy-paste. Check one off once you've completed it inside the time box.",
+    },
+    practiceKinds: { math: "TIMED BUILD", theory: "EXPLAIN OUT LOUD" },
+    notePlaceholder:
+      "Interviewer names, panel structure, follow-up questions you froze on, things to mention about Algonauts, questions to ask them...",
+    qaNotes: [],
+  },
 };
 
-export const TRACK_LIST = [TRACKS.learn, TRACKS.prep];
+export const TRACK_LIST = [TRACKS.learn, TRACKS.prep, TRACKS.crisil];
 
 export const DEFAULT_TRACK = "prep";
