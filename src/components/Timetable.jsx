@@ -1,33 +1,33 @@
 import { useMemo } from "react";
-import curriculum from "../data/curriculum";
-import { formatDay, startOfToday, weekRange } from "../utils/schedule";
+import { formatDay, startOfToday, unitRange } from "../utils/schedule";
 
-export default function Timetable({ stats, startDate, setView, setActiveModule }) {
+export default function Timetable({ track, stats, startDate, setView, setActiveModule }) {
+  const modules = track.modules;
+
   const rows = useMemo(() => {
     const today = startOfToday();
-    return curriculum.map((m, i) => {
-      const { start, end } = weekRange(startDate, i);
+    return modules.map((m, i) => {
+      const { start, end } = unitRange(startDate, i, track.unitDays);
       const pct = stats.perModule[m.id]?.pct ?? 0;
       let status = "Upcoming";
       if (pct === 100) status = "Done";
-      else if (start <= today && today <= end) status = "This week";
+      else if (start <= today && today <= end) status = "Current";
       else if (end < today) status = "Overdue";
-      return { m, weekStart: start, weekEnd: end, pct, status };
+      return { m, unitStart: start, unitEnd: end, pct, status };
     });
-  }, [stats, startDate]);
+  }, [stats, startDate, modules, track.unitDays]);
 
-  const totalHours = curriculum.reduce((a, m) => a + m.hours, 0);
+  const totalHours = modules.reduce((a, m) => a + m.hours, 0);
   const overdue = rows.filter((r) => r.status === "Overdue").length;
+  const avg = Math.round(totalHours / modules.length);
 
   return (
     <div className="max-w-5xl">
       <header className="mb-6">
         <p className="font-mono text-xs text-accent2 tracking-widest mb-2">SCHEDULE</p>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">16-week timetable</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">{track.scheduleTitle}</h1>
         <p className="text-muted mt-2 max-w-2xl leading-relaxed">
-          One module per week at roughly {Math.round(totalHours / curriculum.length)} hrs/week (~1–1.5 hrs on
-          weekdays). Dates auto-shift from the day you started — fall behind and it'll flag as overdue, not judge
-          you.
+          {track.scheduleBlurb.replace("{avg}", String(avg))}
           {overdue > 0 && (
             <>
               {" "}
@@ -41,14 +41,14 @@ export default function Timetable({ stats, startDate, setView, setActiveModule }
 
       <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
         <div className="grid grid-cols-[70px_1fr_150px_110px_90px] gap-3 px-4 py-2.5 bg-surface2 font-mono text-[10px] text-muted tracking-wider min-w-[680px]">
-          <span>WEEK</span>
+          <span>{track.unit}</span>
           <span>MODULE</span>
           <span>DATES</span>
           <span>STATUS</span>
           <span className="text-right">PROGRESS</span>
         </div>
         <div className="divide-y divide-border min-w-[680px]">
-          {rows.map(({ m, weekStart, weekEnd, pct, status }) => (
+          {rows.map(({ m, unitStart, unitEnd, pct, status }) => (
             <button
               key={m.id}
               onClick={() => {
@@ -65,7 +65,7 @@ export default function Timetable({ stats, startDate, setView, setActiveModule }
                 </p>
               </div>
               <span className="font-mono text-[11px] text-muted">
-                {formatDay(weekStart)} – {formatDay(weekEnd)}
+                {formatDay(unitStart)} – {formatDay(unitEnd)}
               </span>
               <StatusPill status={status} />
               <div className="flex items-center gap-2 justify-end">
@@ -88,7 +88,7 @@ export default function Timetable({ stats, startDate, setView, setActiveModule }
 function StatusPill({ status }) {
   const styles = {
     Done: "bg-success/15 text-success border-success/30",
-    "This week": "bg-accent/15 text-accent border-accent/30",
+    Current: "bg-accent/15 text-accent border-accent/30",
     Upcoming: "bg-surface2 text-muted border-border",
     Overdue: "bg-red-500/15 text-red-400 border-red-500/30",
   };

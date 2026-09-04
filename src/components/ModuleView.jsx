@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
-import curriculum from "../data/curriculum";
 import { LessonIndex, LessonView } from "./LessonReader";
 import { RESOURCE_KIND_LABEL } from "../data/blocks";
+import Block from "./Blocks";
 
-export default function ModuleView({ moduleId, state, toggle, setChecked, setNote, stats, setActiveModule }) {
+export default function ModuleView({ track, moduleId, state, toggle, setChecked, setNote, stats, setActiveModule }) {
+  const curriculum = track.modules;
   const idx = curriculum.findIndex((m) => m.id === moduleId);
   const m = curriculum[idx];
 
@@ -40,6 +41,14 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
     [state, m]
   );
 
+  // Curated Q&A notes tagged to this phase. A note can be filed under several
+  // phases at once (see src/data/qaNotes.js), so this is a plain filter, not
+  // a lookup by id.
+  const moduleQaNotes = useMemo(() => {
+    const all = track.qaNotes ?? [];
+    return all.filter((n) => n.phases.includes(m.id)).sort((a, b) => b.date.localeCompare(a.date));
+  }, [track.qaNotes, m.id]);
+
   const isLessonRead = (lessonId) => !!state.lessons[`${m.id}-${lessonId}`];
   const setLessonRead = (lessonId, read) => setChecked("lessons", `${m.id}-${lessonId}`, read);
 
@@ -55,7 +64,9 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
       {/* Header */}
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted mb-3">
-          <span className="px-2 py-0.5 rounded bg-surface2 border border-border">WEEK {m.week}</span>
+          <span className="px-2 py-0.5 rounded bg-surface2 border border-border">
+            {track.unit} {m.week}
+          </span>
           <span className="px-2 py-0.5 rounded bg-surface2 border border-border">{m.hours}H PLANNED</span>
           <span className="px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">{m.tag}</span>
           {modStats.totalMinutes > 0 && (
@@ -87,24 +98,32 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
           onClick={() => setTab("read")}
         />
         <Tab
-          label="Recall"
+          label={track.tabs.theory}
           count={`${counts.theory}/${m.theory.length}`}
           active={tab === "theory"}
           onClick={() => setTab("theory")}
         />
         <Tab
-          label="Math"
+          label={track.tabs.math}
           count={`${counts.math}/${m.math.length}`}
           active={tab === "math"}
           onClick={() => setTab("math")}
         />
         <Tab
-          label="Practice"
+          label={track.tabs.practice}
           count={`${counts.practice}/${m.practice.length}`}
           active={tab === "practice"}
           onClick={() => setTab("practice")}
         />
         <Tab label="Notes" active={tab === "notes"} onClick={() => setTab("notes")} />
+        {moduleQaNotes.length > 0 && (
+          <Tab
+            label="Q&A"
+            count={String(moduleQaNotes.length)}
+            active={tab === "qa"}
+            onClick={() => setTab("qa")}
+          />
+        )}
         <Tab label="Resources" active={tab === "resources"} onClick={() => setTab("resources")} />
       </div>
 
@@ -132,9 +151,7 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
       {/* Recall */}
       {tab === "theory" && (
         <>
-          <p className="text-xs text-muted mb-4">
-            After reading, check off each concept you could explain out loud, without notes.
-          </p>
+          <p className="text-xs text-muted mb-4">{track.hints.theory}</p>
           <div className="space-y-2.5">
             {m.theory.map((text, i) => {
               const checked = !!state.theory[`${m.id}-${i}`];
@@ -185,10 +202,7 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
       {/* Practice */}
       {tab === "practice" && (
         <div className="space-y-3">
-          <p className="text-xs text-muted mb-1">
-            A mix of theoretical and mathematical questions. Work them out on paper — check one off once you can
-            answer it without notes.
-          </p>
+          <p className="text-xs text-muted mb-1">{track.hints.practice}</p>
           {m.practice.map((item, i) => {
             const checked = !!state.practice[`${m.id}-${i}`];
             return (
@@ -205,7 +219,7 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
                       item.type === "math" ? "bg-amber/15 text-amber" : "bg-accent2/15 text-accent2"
                     }`}
                   >
-                    {item.type === "math" ? "MATH / NUMERICAL" : "THEORY"}
+                    {item.type === "math" ? track.practiceKinds.math : track.practiceKinds.theory}
                   </span>
                   <p className={`text-sm leading-relaxed ${checked ? "text-text/70" : "text-text/95"}`}>{item.q}</p>
                 </div>
@@ -225,9 +239,51 @@ export default function ModuleView({ moduleId, state, toggle, setChecked, setNot
               setLocalNote(e.target.value);
               setNote(m.id, e.target.value);
             }}
-            placeholder="Write your own explanation of attention, worked-out derivations, links you found useful, questions to ask a mentor..."
+            placeholder={track.notePlaceholder}
             className="w-full h-64 rounded-xl border border-border bg-surface p-4 text-sm text-text placeholder:text-muted/60 resize-y font-mono leading-relaxed"
           />
+        </div>
+      )}
+
+      {/* Q&A — curated notes filed under this phase (possibly others too) */}
+      {tab === "qa" && (
+        <div className="space-y-8">
+          <p className="text-xs text-muted -mt-1">
+            Answers worked out during prep conversations, filed under every phase they're relevant to.
+          </p>
+          {moduleQaNotes.map((note) => (
+            <article key={note.id} className="rounded-xl border border-border bg-surface p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+                <h3 className="font-display text-lg font-semibold tracking-tight text-text">{note.title}</h3>
+                <span className="font-mono text-[10px] text-muted shrink-0 mt-1">{note.date}</span>
+              </div>
+              {note.phases.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                  <span className="text-[10px] text-muted mr-0.5">Also filed under:</span>
+                  {note.phases
+                    .filter((p) => p !== m.id)
+                    .map((p) => {
+                      const other = curriculum.find((mod) => mod.id === p);
+                      if (!other) return null;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => goto(p)}
+                          className="font-mono text-[10px] px-2 py-0.5 rounded border border-border text-muted hover:text-text hover:border-accent/50 transition-colors"
+                        >
+                          {track.unit} {other.week} · {other.title}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+              <div className="reading">
+                {note.blocks.map((block, i) => (
+                  <Block key={i} block={block} />
+                ))}
+              </div>
+            </article>
+          ))}
         </div>
       )}
 

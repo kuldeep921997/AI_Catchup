@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import curriculum from "../data/curriculum";
 
-const STORAGE_KEY = "ai-catchup-progress-v1";
 const SAVE_DEBOUNCE_MS = 400;
 
 // Buckets are plain maps of `${moduleId}-${key}` -> true.
@@ -59,9 +57,9 @@ function looksLikeProgress(raw) {
   return BUCKETS.some((b) => raw[b] && typeof raw[b] === "object") || typeof raw.startDate === "string";
 }
 
-function loadState() {
+function loadState(storageKey) {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(storageKey);
     if (stored) return normalizeState(JSON.parse(stored));
   } catch (e) {
     console.warn("Could not load saved progress", e);
@@ -69,8 +67,14 @@ function loadState() {
   return emptyState();
 }
 
-export default function useProgress() {
-  const [state, setState] = useState(loadState);
+// One instance per track. The track's modules drive the stats totals and its
+// storageKey isolates its progress, so switching tracks never mixes the two.
+// App remounts this subtree on track change (via `key`), which is what makes
+// the lazy useState initialiser pick up the new key.
+export default function useProgress(track) {
+  const { storageKey, modules } = track;
+
+  const [state, setState] = useState(() => loadState(storageKey));
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -79,19 +83,23 @@ export default function useProgress() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        localStorage.setItem(storageKey, JSON.stringify(state));
       } catch (e) {
         console.warn("Could not save progress", e);
       }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [state]);
+  }, [state, storageKey]);
 
-  // Flush immediately if the tab is closed or hidden mid-debounce.
+  // Flush immediately if the tab is closed or hidden mid-debounce — and also on
+  // unmount, which is what happens when the user switches track or returns to
+  // the chooser. Without the unmount flush, up to SAVE_DEBOUNCE_MS of progress
+  // is silently dropped: the debounce cleanup cancels the pending write and
+  // neither beforeunload nor visibilitychange fires on a React unmount.
   useEffect(() => {
     const flush = () => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateRef.current));
+        localStorage.setItem(storageKey, JSON.stringify(stateRef.current));
       } catch {
         /* storage full or unavailable — nothing useful to do here */
       }
@@ -101,8 +109,9 @@ export default function useProgress() {
     return () => {
       window.removeEventListener("beforeunload", flush);
       document.removeEventListener("visibilitychange", flush);
+      flush();
     };
-  }, []);
+  }, [storageKey]);
 
   const toggle = useCallback((bucket, key) => {
     setState((prev) => {
@@ -128,7 +137,7 @@ export default function useProgress() {
   }, []);
 
   const resetAll = useCallback(() => {
-    if (window.confirm("Reset all progress? This cannot be undone.")) {
+    if (window.confirm("Reset all progress for this track? This cannot be undone.")) {
       setState(emptyState());
       return true;
     }
@@ -157,13 +166,13 @@ export default function useProgress() {
     let totalMinutes = 0;
     let readMinutes = 0;
 
-    curriculum.forEach((m) => {
+    modules.forEach((m) => {
       const lessons = m.lessons ?? [];
       const counts = {
         lessons: lessons.length,
-        theory: m.theory.length,
-        math: m.math.length,
-        practice: m.practice.length,
+        theory: (m.theory ?? []).length,
+        math: (m.math ?? []).length,
+        practice: (m.practice ?? []).length,
       };
       const total = counts.lessons + counts.theory + counts.math + counts.practice;
 
@@ -204,13 +213,32 @@ export default function useProgress() {
       totalItems,
       doneItems,
       overallPct: totalItems ? Math.round((doneItems / totalItems) * 100) : 0,
-      modulesCompleted: curriculum.filter((m) => perModule[m.id].pct === 100).length,
+      modulesCompleted: modules.filter((m) => perModule[m.id].pct === 100).length,
       totalMinutes,
       readMinutes,
-      lessonsTotal: curriculum.reduce((a, m) => a + (m.lessons?.length ?? 0), 0),
-      lessonsDone: curriculum.reduce((a, m) => a + perModule[m.id].lessonsDone, 0),
+      lessonsTotal: modules.reduce((a, m) => a + (m.lessons?.length ?? 0), 0),
+      lessonsDone: modules.reduce((a, m) => a + perModule[m.id].lessonsDone, 0),
     };
-  }, [state]);
+  }, [state, modules]);
 
   return { state, toggle, setChecked, setNote, resetAll, exportData, importData, stats };
+}
+
+// Read a track's headline numbers without mounting its provider. Used by the
+// track chooser so both cards can show progress at once.
+export function peekTrackStats(track) {
+  const state = loadState(track.storageKey);
+  let total = 0;
+  let done = 0;
+  track.modules.forEach((m) => {
+    const lessons = m.lessons ?? [];
+    total += lessons.length + (m.theory ?? []).length + (m.math ?? []).length + (m.practice ?? []).length;
+    lessons.forEach((l) => {
+      if (state.lessons[`${m.id}-${l.id}`]) done++;
+    });
+    for (let i = 0; i < (m.theory ?? []).length; i++) if (state.theory[`${m.id}-${i}`]) done++;
+    for (let i = 0; i < (m.math ?? []).length; i++) if (state.math[`${m.id}-${i}`]) done++;
+    for (let i = 0; i < (m.practice ?? []).length; i++) if (state.practice[`${m.id}-${i}`]) done++;
+  });
+  return { total, done, pct: total ? Math.round((done / total) * 100) : 0 };
 }

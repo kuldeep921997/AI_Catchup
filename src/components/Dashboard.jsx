@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from "react";
-import curriculum from "../data/curriculum";
 
 function fmtHours(minutes) {
   if (!minutes) return "0h";
@@ -9,13 +8,14 @@ function fmtHours(minutes) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-export default function Dashboard({ stats, setView, setActiveModule, exportData, importData, resetAll }) {
+export default function Dashboard({ track, stats, setView, setActiveModule, exportData, importData, resetAll }) {
   const fileInputRef = useRef(null);
   const [importMsg, setImportMsg] = useState(null);
+  const modules = track.modules;
 
   const tagBreakdown = useMemo(() => {
     const map = {};
-    curriculum.forEach((m) => {
+    modules.forEach((m) => {
       if (!map[m.tag]) map[m.tag] = { total: 0, done: 0 };
       map[m.tag].total += stats.perModule[m.id].total;
       map[m.tag].done += stats.perModule[m.id].done;
@@ -24,17 +24,17 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
       tag,
       pct: v.total ? Math.round((v.done / v.total) * 100) : 0,
     }));
-  }, [stats]);
+  }, [stats, modules]);
 
-  const nextModule = curriculum.find((m) => stats.perModule[m.id].pct < 100);
-  const totalHours = curriculum.reduce((a, m) => a + m.hours, 0);
+  const nextModule = modules.find((m) => stats.perModule[m.id].pct < 100);
+  const totalHours = modules.reduce((a, m) => a + m.hours, 0);
 
   const handleExport = () => {
     const blob = new Blob([exportData()], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `genai-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `${track.exportPrefix}-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     // Revoking synchronously can cancel the download in some browsers.
@@ -64,28 +64,24 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
   return (
     <div className="max-w-5xl">
       <header className="mb-8">
-        <p className="font-mono text-xs text-accent2 tracking-widest mb-2">GENAI CATCH-UP · 16-WEEK ROADMAP</p>
+        <p className="font-mono text-xs text-accent2 tracking-widest mb-2">{track.kicker}</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Welcome back. Here's the state of the model.
+          Welcome back. Here&rsquo;s where you stand.
         </h1>
         <p className="text-muted mt-2 max-w-2xl leading-relaxed">
-          {curriculum.length} modules and {stats.lessonsTotal} in-depth lessons — from attention math to Nvidia
-          inference pipelines. Read the lessons, then check off the concepts you can explain, the formulas you can
-          derive, and the questions you can answer without notes.
+          {modules.length} modules and {stats.lessonsTotal} in-depth lessons. Read the lessons, then check off the
+          concepts you can explain, the patterns you can write from memory, and the drills you can finish inside the
+          time box.
         </p>
       </header>
 
       {/* Top stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <StatCard label="Overall progress" value={`${stats.overallPct}%`} accent="text-accent" />
-        <StatCard
-          label="Lessons read"
-          value={`${stats.lessonsDone} / ${stats.lessonsTotal}`}
-          accent="text-accent2"
-        />
+        <StatCard label="Lessons read" value={`${stats.lessonsDone} / ${stats.lessonsTotal}`} accent="text-accent2" />
         <StatCard
           label="Modules mastered"
-          value={`${stats.modulesCompleted} / ${curriculum.length}`}
+          value={`${stats.modulesCompleted} / ${modules.length}`}
           accent="text-success"
         />
         <StatCard label="Items completed" value={`${stats.doneItems} / ${stats.totalItems}`} accent="text-amber" />
@@ -120,7 +116,9 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
         >
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] text-muted mb-1">CONTINUE · WEEK {nextModule.week}</p>
+              <p className="font-mono text-[10px] text-muted mb-1">
+                CONTINUE · {track.unit} {nextModule.week}
+              </p>
               <p className="font-display text-lg font-semibold">{nextModule.title}</p>
               <p className="text-sm text-muted mt-1 max-w-xl">{nextModule.why}</p>
               <p className="font-mono text-[10px] text-accent2 mt-2">
@@ -143,7 +141,7 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
 
       {/* Tag breakdown */}
       <div className="rounded-xl border border-border bg-surface p-5 mb-8">
-        <p className="font-mono text-[10px] text-muted mb-4 tracking-wider">PROGRESS BY TRACK</p>
+        <p className="font-mono text-[10px] text-muted mb-4 tracking-wider">PROGRESS BY AREA</p>
         <div className="space-y-3">
           {tagBreakdown.map((t) => (
             <div key={t.tag} className="flex items-center gap-4">
@@ -164,8 +162,9 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
       <div className="rounded-xl border border-border bg-surface p-5">
         <p className="font-mono text-[10px] text-muted mb-3 tracking-wider">YOUR DATA</p>
         <p className="text-sm text-muted mb-4">
-          Progress is saved locally in your browser only. Export a backup before clearing browser data, or to move
-          to another machine.
+          Progress for the <span className="text-text/90">{track.label}</span> track is saved locally in this browser
+          only, separately from the other track. Export a backup before clearing browser data, or to move to another
+          machine.
         </p>
         <div className="flex flex-wrap gap-3">
           <button
@@ -193,7 +192,7 @@ export default function Dashboard({ stats, setView, setActiveModule, exportData,
             }}
             className="px-4 py-2 rounded-lg bg-surface3 border border-border text-sm text-red-400 hover:border-red-400/50 transition-colors"
           >
-            Reset all progress
+            Reset this track
           </button>
         </div>
         {importMsg && (
