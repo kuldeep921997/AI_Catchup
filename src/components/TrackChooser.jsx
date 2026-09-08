@@ -4,26 +4,37 @@ import { peekTrackStats } from "../hooks/useProgress";
 
 // Landing screen. Shown on first visit and reachable any time from the sidebar,
 // so the two tracks stay visibly separate rather than blending into one list.
-export default function TrackChooser({ onPick }) {
+export default function TrackChooser({ onPick, userEmail, onLogout }) {
   const cards = useMemo(
     () =>
       TRACK_LIST.map((t) => ({
         track: t,
-        stats: peekTrackStats(t),
+        stats: peekTrackStats(t, userEmail),
         lessons: t.modules.reduce((a, m) => a + (m.lessons?.length ?? 0), 0),
         minutes: t.modules.reduce(
           (a, m) => a + (m.lessons ?? []).reduce((b, l) => b + (l.minutes ?? 0), 0),
           0
         ),
       })),
-    []
+    [userEmail]
   );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-16">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-6xl">
+        {userEmail && onLogout && (
+          <div className="flex items-center justify-end gap-3 mb-4">
+            <span className="font-mono text-[10px] text-muted truncate max-w-[220px]">{userEmail}</span>
+            <button
+              onClick={onLogout}
+              className="font-mono text-[10px] px-2.5 py-1 rounded-md border border-border text-muted hover:text-text hover:border-accent/50 transition-colors"
+            >
+              LOG OUT
+            </button>
+          </div>
+        )}
         <header className="mb-10 text-center">
-          <p className="font-mono text-xs text-accent2 tracking-widest mb-3">TWO TRACKS · ONE ENGINE</p>
+          <p className="font-mono text-xs text-accent2 tracking-widest mb-3">{TRACK_LIST.length} TRACKS · ONE ENGINE</p>
           <h1 className="font-display text-4xl font-semibold tracking-tight">What are you working on?</h1>
           <p className="text-muted mt-3 max-w-xl mx-auto leading-relaxed">
             Progress is tracked separately for each track, so you can switch between them without losing your place.
@@ -31,7 +42,7 @@ export default function TrackChooser({ onPick }) {
           </p>
         </header>
 
-        <div className="grid md:grid-cols-2 gap-5">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
           {cards.map(({ track, stats, lessons, minutes }) => (
             <button
               key={track.id}

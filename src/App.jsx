@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import ModuleView from "./components/ModuleView";
 import Timetable from "./components/Timetable";
 import TrackChooser from "./components/TrackChooser";
-import useProgress from "./hooks/useProgress";
+import AuthGate from "./components/AuthGate";
+import useProgress, { migrateLegacyProgressForUser } from "./hooks/useProgress";
+import useAuth from "./hooks/useAuth";
 import { TRACKS } from "./data/tracks";
 
 const TRACK_KEY = "active-track-v1";
@@ -20,6 +22,24 @@ function loadTrack() {
 }
 
 export default function App() {
+  const { user, register, login, logout } = useAuth();
+
+  // One-time inheritance of progress saved before multi-user support existed
+  // (see migrateLegacyProgressForUser) — runs once per browser, the moment
+  // someone is actually signed in.
+  useEffect(() => {
+    if (user) migrateLegacyProgressForUser(user);
+  }, [user]);
+
+  if (!user) return <AuthGate onLogin={login} onRegister={register} />;
+
+  // Keying on the account email forces a full remount of everything below on
+  // login/logout, so no state from a previous session can leak into the next
+  // one on the same browser.
+  return <AccountShell key={user} userEmail={user} onLogout={logout} />;
+}
+
+function AccountShell({ userEmail, onLogout }) {
   const [trackId, setTrackId] = useState(loadTrack);
 
   const pickTrack = useCallback((id) => {
@@ -40,26 +60,40 @@ export default function App() {
     }
   }, []);
 
-  if (!trackId) return <TrackChooser onPick={pickTrack} />;
+  if (!trackId) return <TrackChooser onPick={pickTrack} userEmail={userEmail} onLogout={onLogout} />;
 
   // Remounting on track change is deliberate: useProgress reads localStorage in
   // a lazy initialiser, so a fresh mount is what loads the new track's state.
-  return <TrackShell key={trackId} track={TRACKS[trackId]} onSwitch={pickTrack} onHome={clearTrack} />;
+  return (
+    <TrackShell
+      key={trackId}
+      track={TRACKS[trackId]}
+      userEmail={userEmail}
+      onSwitch={pickTrack}
+      onHome={clearTrack}
+      onLogout={onLogout}
+    />
+  );
 }
 
-function TrackShell({ track, onSwitch, onHome }) {
+function TrackShell({ track, userEmail, onSwitch, onHome, onLogout }) {
   const [view, setView] = useState("dashboard"); // dashboard | timetable | module
   const [activeModule, setActiveModule] = useState(track.modules[0].id);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { state, toggle, setChecked, setNote, resetAll, exportData, importData, stats } = useProgress(track);
+  const { state, toggle, setChecked, setNote, resetAll, exportData, importData, stats } = useProgress(
+    track,
+    userEmail
+  );
 
   return (
     <div className="flex min-h-screen bg-bg text-text font-body">
       <Sidebar
         track={track}
+        userEmail={userEmail}
         onSwitch={onSwitch}
         onHome={onHome}
+        onLogout={onLogout}
         view={view}
         setView={setView}
         activeModule={activeModule}

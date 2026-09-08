@@ -3,8 +3,10 @@ import { currentUnitIndex } from "../utils/schedule";
 
 export default function Sidebar({
   track,
+  userEmail,
   onSwitch,
   onHome,
+  onLogout,
   view,
   setView,
   activeModule,
@@ -183,6 +185,31 @@ export default function Sidebar({
               );
             })}
           </div>
+        </div>
+
+        {/* Account footer */}
+        <div className="px-3 py-3 border-t border-border">
+          {collapsed ? (
+            <button
+              onClick={handleNav(onLogout)}
+              title={userEmail ? `Log out (${userEmail})` : "Log out"}
+              className="w-full flex items-center justify-center h-8 rounded-md border border-border text-muted hover:text-text hover:border-accent transition-colors"
+            >
+              <span className="font-mono text-[10px]">⎋</span>
+            </button>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] text-muted truncate" title={userEmail}>
+                {userEmail}
+              </span>
+              <button
+                onClick={handleNav(onLogout)}
+                className="shrink-0 font-mono text-[10px] px-2 py-1 rounded-md border border-border text-muted hover:text-text hover:border-accent/50 transition-colors"
+              >
+                LOG OUT
+              </button>
+            </div>
+          )}
         </div>
       </aside>
     </>

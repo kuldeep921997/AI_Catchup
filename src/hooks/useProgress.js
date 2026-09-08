@@ -67,12 +67,48 @@ function loadState(storageKey) {
   return emptyState();
 }
 
+// Namespaces a track's storage key by account, so two people using the same
+// browser never see or overwrite each other's progress. Exported so App.jsx
+// and the track chooser can compute the same key peekTrackStats/useProgress
+// read from.
+export function userScopedKey(email, storageKey) {
+  return `u:${email}:${storageKey}`;
+}
+
+// Multi-user support was added after this app already had real, single-user
+// progress saved under the plain (un-namespaced) storage keys. Rather than
+// orphan that history, the first account ever logged into on this browser
+// inherits it — copied once, guarded by a flag so a second or third person
+// registering afterwards does not also inherit someone else's history.
+const LEGACY_MIGRATION_FLAG = "legacy-progress-migrated-v1";
+const LEGACY_STORAGE_KEYS = ["ai-catchup-progress-v1", "fe-prep-progress-v1", "crisil-prep-progress-v1"];
+
+export function migrateLegacyProgressForUser(email) {
+  if (!email) return;
+  try {
+    if (localStorage.getItem(LEGACY_MIGRATION_FLAG)) return;
+    for (const legacyKey of LEGACY_STORAGE_KEYS) {
+      const legacyValue = localStorage.getItem(legacyKey);
+      if (legacyValue == null) continue;
+      const scoped = userScopedKey(email, legacyKey);
+      if (localStorage.getItem(scoped) == null) {
+        localStorage.setItem(scoped, legacyValue);
+      }
+    }
+    localStorage.setItem(LEGACY_MIGRATION_FLAG, "1");
+  } catch (e) {
+    console.warn("Could not migrate legacy progress", e);
+  }
+}
+
 // One instance per track. The track's modules drive the stats totals and its
-// storageKey isolates its progress, so switching tracks never mixes the two.
-// App remounts this subtree on track change (via `key`), which is what makes
-// the lazy useState initialiser pick up the new key.
-export default function useProgress(track) {
-  const { storageKey, modules } = track;
+// storageKey (namespaced per account) isolates its progress, so switching
+// tracks — or switching accounts — never mixes the two. App remounts this
+// subtree on track change (via `key`), which is what makes the lazy
+// useState initialiser pick up the new key.
+export default function useProgress(track, userEmail) {
+  const { modules } = track;
+  const storageKey = userScopedKey(userEmail, track.storageKey);
 
   const [state, setState] = useState(() => loadState(storageKey));
   const stateRef = useRef(state);
@@ -226,8 +262,8 @@ export default function useProgress(track) {
 
 // Read a track's headline numbers without mounting its provider. Used by the
 // track chooser so both cards can show progress at once.
-export function peekTrackStats(track) {
-  const state = loadState(track.storageKey);
+export function peekTrackStats(track, userEmail) {
+  const state = loadState(userScopedKey(userEmail, track.storageKey));
   let total = 0;
   let done = 0;
   track.modules.forEach((m) => {
